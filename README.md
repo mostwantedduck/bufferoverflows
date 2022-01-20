@@ -11,9 +11,16 @@ https://www.youtube.com/watch?v=YJjNhVWI8Jc
 02.easy_file_sharing.py
 ```
 
-## 04 - CloudMe Sync 1.11.2 - Bypass DEP com ROP using WinDbg (Portugues 🇧🇷)
+## 04 -CloudMe Sync 1.11.2 - Bypass DEP com ROP Chain using WinDbg (Portugues 🇧🇷)
 https://www.youtube.com/watch?v=rMVwqFtnoi0
 
 ```
 04. bypass_dep_with_rop_cloudme.py
+```
+
+## 05 - CloudMe Sync 1.11.2 - Bypass DEP com ROP using WinDbg (Portugues 🇧🇷)
+https://www.youtube.com/watch?v=6EEFjj0uYzA
+
+```
+05. bypass_dep_with_rop_cloudme_manual.py
 ```
