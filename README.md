@@ -24,3 +24,9 @@ https://www.youtube.com/watch?v=6EEFjj0uYzA
 ```
 05. bypass_dep_with_rop_cloudme_manual.py
 ```
+
+Alt 1 - ROP com WriteProcessMemory: cloudme-sync-wpm.py
+https://www.youtube.com/watch?v=FKDQzKlwDI4
+
+Alt 2 - ROP com WriteProcessMemory - Encoder / Decoder: cloudme-wpm-encoder-decoder.py
+https://www.youtube.com/watch?v=ZxfHdFJ6T30
