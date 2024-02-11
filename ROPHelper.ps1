@@ -1,24 +1,6 @@
 $filePath = $null
+$fileContent = $null
 $excludedStringsFromSearch = $null
-
-$SimpleRules = @{
-    "DEREF"             = '^mov e.., dword \[e..\] ; ret'
-    "WRITE"             = '^mov dword \[e..\], e.. ; ret'
-    "XCHG"              = '^xchg e.., e.. ; ret'
-    "MOV"               = '^mov e.., e.. ; ret'
-    "ADD"               = '^add e.., e.. ; ret'
-    "SUB"               = '^sub e.., e.. ; ret'
-    "POP"               = '^pop e.. ; ret'
-    "PUSH"              = '^push e.. ; ret'
-    "PUSHPOPRET"        = '^push e.*pop e.*ret'
-    "POPPUSHRET"        = '^pop e.*push e.*ret'
-    "PUSHPUSHPOPPOPRET" = '^push e.*push e.*pop e.*pop e.*ret'
-    "NEG"               = '^neg e.. ; ret'
-    "INC"               = '^inc e.. ; ret'
-    "DEC"               = '^dec e.. ; ret'
-    "XOR"               = '^xor e.., e.. ; ret'
-}
-
 
 $Operations = @{
     PUSH_ESP_2_REG_LBL = "Gadgets - Push ESP to Somewhere"
@@ -51,15 +33,23 @@ $Operations = @{
 
     ADD_LBL = "Gadgets - Add Something"
     ADD_OPT = "4a"
-    ADD_REX = "\badd\s+e\w+,\s+e\w+\b"
+    ADD_REX = "(add\s+e\w+,\s+e\w+)"
+
+    ADD_LBL_2 = "Gadgets - Add Something to Something (Custom)"
+    ADD_OPT_2 = "4b"
+    ADD_REX_2 = "(add\s+PLACEHOLDER1,\s+PLACEHOLDER2)"
 
     SUB_LBL = "Gadgets - Sub Something"
-    SUB_OPT = "4b"
-    SUB_REX = "\bsub\s+e\w+,\s+e\w+\b"
+    SUB_OPT = "4c"
+    SUB_REX = "(sub\s+e\w+,\s+e\w+)"
+
+    SUB_LBL_2 = "Gadgets - Sub Something to Something (Custom)"
+    SUB_OPT_2 = "4d"
+    SUB_REX_2 = "(sub\s+PLACEHOLDER1,\s+PLACEHOLDER2)"
 
     NEG_LBL = "Gadgets - Neg Something"
-    NEG_OPT = "4c"
-    NEG_REX = "\bneg\s+e\w+\b"
+    NEG_OPT = "4e"
+    NEG_REX = "(neg\s+e\w+)"
 
     CST_POP_2_REG_LBL = "Gadgets - Pop Something (Custom)"
     CST_POP_2_REG_OPT = "9a"
@@ -101,7 +91,7 @@ $Labels = @{
     SELECT_AN_OPT = "Select an option"
     INVALID_OPTION = "Invalid option. Please try again."
     EXITING_BYE = "Exiting the script. Goodbye!"
-    ENTER_REGISTER= "Enter the register [eax | ebx | ecx | edx | esi | edi]"
+    ENTER_REGISTER= "Enter the register [eax | ebx | ecx | edx | esi | edi | ebp]"
     ENTER_REGEX = "Enter the regular expression"
     CONFIGURED_TEXT = "[+] Configured: "
     ERR_MSG_NO_FILE_CONFIG = "[!] No file configured"
@@ -150,7 +140,9 @@ $($Operations.WRITE_REG_LEA_OPT). $($Operations.WRITE_REG_LEA_LBL)
 $($Operations.DEREF_REG_OPT). $($Operations.DEREF_REG_LBL)
 
 $($Operations.ADD_OPT). $($Operations.ADD_LBL)
+$($Operations.ADD_OPT_2). $($Operations.ADD_LBL_2)
 $($Operations.SUB_OPT). $($Operations.SUB_LBL)
+$($Operations.SUB_OPT_2). $($Operations.SUB_LBL_2)
 $($Operations.NEG_OPT). $($Operations.NEG_LBL)
 
 $($Operations.CST_POP_2_REG_OPT). $($Operations.CST_POP_2_REG_LBL)
@@ -171,10 +163,18 @@ $($Operations.EXIT_OPT). $($Operations.EXIT_LBL)
 
 
 function Get-Custom-Register {
-    $validRegisters = 'eax', 'ebx', 'ecx', 'edx', 'esi', 'edi'
+    param(
+        [string]$registerOrder
+    )
+
+    $validRegisters = 'eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp'
+
+    if ($registerOrder -ne $null) {
+        $registerOrder = " (" + $registerOrder + ")"
+    }
 
     do {
-        $inputValue = Read-Host $Labels.ENTER_REGISTER
+        $inputValue = Read-Host ($Labels.ENTER_REGISTER + $registerOrder)
         $isValid = $validRegisters -contains $inputValue -or $inputValue -match '^e\w+$'
 
         if (-not $isValid) {
@@ -220,14 +220,14 @@ function Run-Gadget-Search {
         return
     }
 
-    $content = Get-Content -Path $global:filePath
+    $content = $global:fileContent
 
     # Apply exclusion filter if excludedStrings is provided
     if ($global:excludedStringsFromSearch) {
         $content = $content | Select-String -Pattern $global:excludedStringsFromSearch -NotMatch
     }
 
-    $result = $content | Select-String -Pattern $searchPattern | Sort-Object Length |
+    $result = $content | Select-String -Pattern $searchPattern |
         ForEach-Object {
             "rop += pack('<L', " + $_.Line -replace ":", ") #"
         }
@@ -255,6 +255,7 @@ function Execute-Option {
         $Operations.STP_CONFIG_INPUT_FILE_OPT {
             $global:filePath = Get-FilePath
             Write-Host "$($Labels.CONFIGURED_TEXT) $global:filePath"
+            $global:fileContent = Get-Content -Path $global:filePath
         }
         $Operations.STP_CONFIG_EXCL_OPT_OPT {
             if ($global:excludedStringsFromSearch) {
@@ -322,12 +323,38 @@ function Execute-Option {
 
             Run-Gadget-Search -searchPattern $Operations.ADD_REX
         }
+        $Operations.ADD_OPT_2 {
+            if (Validate-FilePath -filePath $global:filePath) {
+                Write-Host $Operations.ADD_LBL_2
+            }
+
+            $register1 = Get-Custom-Register "1"
+            $register2 = Get-Custom-Register "2"
+
+            $expression = $Operations.ADD_REX_2.Replace("PLACEHOLDER1", $register1).Replace("PLACEHOLDER2", $register2)
+            Write-Host $expression
+
+            Run-Gadget-Search -searchPattern $expression
+        }
         $Operations.SUB_OPT {
             if (Validate-FilePath -filePath $global:filePath) {
                 Write-Host $Operations.SUB_LBL
             }
 
             Run-Gadget-Search -searchPattern $Operations.SUB_REX
+        }
+        $Operations.SUB_OPT_2 {
+            if (Validate-FilePath -filePath $global:filePath) {
+                Write-Host $Operations.SUB_LBL_2
+            }
+
+            $register1 = Get-Custom-Register "1"
+            $register2 = Get-Custom-Register "2"
+
+            $expression = $Operations.SUB_REX_2.Replace("PLACEHOLDER1", $register1).Replace("PLACEHOLDER2", $register2)
+            Write-Host $expression
+
+            Run-Gadget-Search -searchPattern $expression
         }
         $Operations.NEG_OPT {
             if (Validate-FilePath -filePath $global:filePath) {
